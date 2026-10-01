@@ -1,0 +1,26 @@
+﻿<Project Sdk="WixToolset.Sdk/7.0.0">
+	<PropertyGroup>
+		<AcceptEula>wix7</AcceptEula>
+	</PropertyGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\MxLintManager\MxLintManager.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="WixToolset.UI.wixext" Version="7.0.0" />
+		<PackageReference Include="WixToolset.Util.wixext" Version="7.0.0" />
+	</ItemGroup>
+	
+	<PropertyGroup>
+		<SignOutput>true</SignOutput>
+		<SignTool>C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe</SignTool>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<SuppressIces>ICE38;ICE43;ICE57;ICE64</SuppressIces>
+	</PropertyGroup>
+	
+	<Target Name="SignMsi">
+		<Exec Command="&quot;$(SignTool)&quot; sign /fd SHA256 /sha1 AF9273DBB9BB7CF7CF111BD8852BE04960BB339A /tr http://timestamp.digicert.com /td SHA256 &quot;%(SignMsi.FullPath)&quot;" />
+	</Target>
+</Project>

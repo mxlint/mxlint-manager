@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net10.0-windows</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<UseWPF>true</UseWPF>
+		<ApplicationManifest>app.manifest</ApplicationManifest>
+
+		<Version>1.0.1</Version>
+		<AssemblyVersion>1.0.1</AssemblyVersion>
+		<FileVersion>1.0.1</FileVersion>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="*" />
+		<PackageReference Include="Microsoft.Extensions.Http" Version="*" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="*" />
+	</ItemGroup>
+
+	<PropertyGroup>
+		<SignTool>C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe</SignTool>
+	</PropertyGroup>
+
+	<Target Name="SignExe" AfterTargets="Build">
+		<Exec Command="&quot;$(SignTool)&quot; sign /fd SHA256 /sha1 AF9273DBB9BB7CF7CF111BD8852BE04960BB339A /tr http://timestamp.digicert.com /td SHA256 &quot;$(TargetDir)$(TargetName).exe&quot; &quot;$(TargetPath)&quot;" />
+	</Target>
+</Project>

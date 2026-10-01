@@ -1,0 +1,153 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  MxLintManager — MSI package
+  ===========================
+  This MSI installs the application files and shortcuts. It is a dual-purpose
+  package (Scope="perUserOrMachine"): after the license page, the installer
+  UI (MxLintUI.wxs) lets the user choose between "Install just for you"
+  (per-user, no elevation, installs to %LocalAppData%\Apps\MxLintManager) and
+  "Install for all users of this machine" (per-machine, elevates, installs to
+  Program Files).
+
+  Silent installs:
+    msiexec /i MxLintInstaller.msi /qn                            (per-user)
+    msiexec /i MxLintInstaller.msi /qn ALLUSERS=1 MSIINSTALLPERUSER=""  (per-machine)
+
+  HarvestPath defaults to the referenced app project's build output via the
+  ProjectReference to MxLintManager.csproj in this .wixproj. Because TargetDir
+  ends with a backslash, the Files patterns append "**" directly (no extra "\").
+-->
+<?ifndef HarvestPath ?>
+<?define HarvestPath = $(var.MxLintManager.TargetDir) ?>
+<?endif?>
+
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+	<Package Name="MxLintManager"
+			 Manufacturer="MxLint"
+			 Version="1.0.1"
+			 UpgradeCode="F3BAFBCF-9379-49A2-AB01-91720AA2C01A"
+			 Scope="perUserOrMachine"
+			 Compressed="yes">
+
+		<!-- License text -->
+		<WixVariable Id="WixUILicenseRtf" Value="agpl-3.0.rtf" />
+		
+		<!-- Clean in-place replacement of older versions; blocks downgrades.
+         Bump Version for every release: a build with the same Version as the
+         installed one is not upgraded and installs beside it.
+         An upgrade only finds installs of the same scope; MxLintUI.wxs makes
+         the new install use the scope of the existing one. -->
+		<MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+
+		<MediaTemplate EmbedCab="yes" />
+
+		<!-- Installer UI (MxLintUI.wxs): Welcome -> License -> Install scope ->
+         Install folder -> Install. -->
+		<Property Id="ApplicationFolderName" Value="MxLintManager" />
+		<UIRef Id="WixUI_MxLint" />
+
+		<!-- "Launch MxLintManager" checkbox on the final page (ExitDialog). The
+         dialog only shows it on a fresh install or upgrade, not on repair or
+         removal; it is checked by default.
+         MxLintManager's manifest requires administrator rights, so it is started
+         with WixShellExec (ShellExecute) rather than CreateProcess: ShellExecute
+         honours the manifest and shows the UAC prompt when needed, whereas
+         CreateProcess would fail with ERROR_ELEVATION_REQUIRED. The ExitDialog
+         runs in the non-elevated UI process, so UAC is asked for even when the
+         install itself was elevated for a per-machine install. -->
+		<Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch MxLintManager (requires administrator permission)" />
+		<Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+		<!-- Return="ignore": declining the UAC prompt must not show an error. -->
+		<CustomAction Id="LaunchMxLintManager" BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)" DllEntry="WixShellExec" Impersonate="yes" Return="ignore" />
+		<UI>
+			<!-- The target is set on Finish so it points at the folder actually chosen. -->
+			<Publish Dialog="ExitDialog" Control="Finish" Property="WixShellExecTarget" Value="[APPLICATIONFOLDER]MxLintManager.exe" Order="1"
+					 Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
+			<Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchMxLintManager" Order="2"
+					 Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
+		</UI>
+
+		<!-- Shortcut options. Both default to enabled (1). A user (or the bundle)
+         can pass INSTALLDESKTOPSHORTCUT=0 / INSTALLSTARTMENUSHORTCUT=0 to skip. -->
+		<Property Id="INSTALLDESKTOPSHORTCUT" Value="1" />
+		<Property Id="INSTALLSTARTMENUSHORTCUT" Value="1" />
+
+		<!-- Optional application icon for Add/Remove Programs. Add later:
+    <Icon Id="AppIcon" SourceFile="MxLintManager.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    -->
+
+		<Feature Id="Main" Title="MxLintManager" Level="1">
+			<ComponentGroupRef Id="AppFiles" />
+			<ComponentRef Id="CmpInstallInfo" />
+			<ComponentRef Id="CmpStartMenuShortcut" />
+			<ComponentRef Id="CmpDesktopShortcut" />
+		</Feature>
+	</Package>
+
+	<!-- Install location. APPLICATIONFOLDER is the directory the installer UI
+       manages: at install time it is redirected to the per-user or
+       per-machine folder depending on the chosen scope. -->
+	<Fragment>
+		<StandardDirectory Id="ProgramFiles6432Folder">
+			<Directory Id="APPLICATIONFOLDER" Name="MxLintManager" />
+		</StandardDirectory>
+	</Fragment>
+
+	<!-- Application payload, harvested from the build output at build time. -->
+	<Fragment>
+		<ComponentGroup Id="AppFiles" Directory="APPLICATIONFOLDER">
+			<Files Include="$(var.HarvestPath)**">
+				<Exclude Files="$(var.HarvestPath)**\*.pdb" />
+				<Exclude Files="$(var.HarvestPath)**\*.xml" />
+			</Files>
+		</ComponentGroup>
+	</Fragment>
+
+	<!-- Shortcut folders resolve to the current user's or the All Users profile
+       depending on the install scope; HKMU likewise maps to HKCU or HKLM. -->
+
+	<!-- Install location, always written. The next installer reads it (HKCU or
+       HKLM) to find the scope and folder of this install; see MxLintUI.wxs. -->
+	<Fragment>
+		<Component Id="CmpInstallInfo" Directory="APPLICATIONFOLDER" Guid="*">
+			<RegistryValue Root="HKMU" Key="Software\MxLint\MxLintManager"
+						   Name="InstallDir" Type="string" Value="[APPLICATIONFOLDER]" KeyPath="yes" />
+		</Component>
+	</Fragment>
+
+	<!-- Start Menu shortcut (in its own program group folder). -->
+	<Fragment>
+		<StandardDirectory Id="ProgramMenuFolder">
+			<Directory Id="AppProgramMenuFolder" Name="MxLintManager">
+				<Component Id="CmpStartMenuShortcut" Guid="*" Condition="INSTALLSTARTMENUSHORTCUT">
+					<Shortcut Id="StartMenuShortcut"
+							  Name="MxLintManager"
+							  Description="MxLintManager"
+							  Target="[APPLICATIONFOLDER]MxLintManager.exe"
+							  WorkingDirectory="APPLICATIONFOLDER" />
+					<RemoveFolder Id="RemoveAppProgramMenuFolder" On="uninstall" />
+					<RegistryValue Root="HKMU" Key="Software\MxLint\MxLintManager"
+								   Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+				</Component>
+			</Directory>
+		</StandardDirectory>
+	</Fragment>
+
+	<!-- Desktop shortcut. -->
+	<Fragment>
+		<StandardDirectory Id="DesktopFolder">
+			<Component Id="CmpDesktopShortcut" Guid="*" Condition="INSTALLDESKTOPSHORTCUT">
+				<Shortcut Id="DesktopShortcut"
+						  Name="MxLintManager"
+						  Description="MxLintManager"
+						  Target="[APPLICATIONFOLDER]MxLintManager.exe"
+						  WorkingDirectory="APPLICATIONFOLDER" />
+				<RegistryValue Root="HKMU" Key="Software\MxLint\MxLintManager"
+							   Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
+			</Component>
+		</StandardDirectory>
+	</Fragment>
+
+</Wix>

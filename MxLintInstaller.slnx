@@ -1,0 +1,12 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="ARM64" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="MxLintInstaller/MxLintInstaller.wixproj" Type="b7dd6f7e-def8-4e67-b5b7-07ef123db6f0" Id="95a82db5-1dd5-404e-bfef-b86b55c3fe84">
+    <Platform Solution="*|Any CPU" Project="x64" />
+  </Project>
+  <Project Path="MxLintManager/MxLintManager.csproj" Id="aef17786-9609-4ed6-a67d-9cbf979d5cfb" />
+</Solution>

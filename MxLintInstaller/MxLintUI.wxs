@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  WixUI_MxLint — installer dialog set
+  ===================================
+  Based on WixUI_Advanced / WixUI_InstallDir from the WiX UI extension, but with
+  a linear wizard in which the install scope is always asked for:
+
+    WelcomeDlg -> LicenseAgreementDlg -> InstallScopeDlg -> [InstallDirDlg] -> VerifyReadyDlg
+
+  When an earlier version is already installed, InstallScopeDlg and InstallDirDlg
+  are skipped: the upgrade keeps the existing scope and folder (see "Existing
+  install detection" below), because a major upgrade can't cross scopes.
+
+  InstallScopeDlg lets the user choose "just for you" (per-user) or "everyone"
+  (per-machine). Per-machine continues to InstallDirDlg; per-user goes straight
+  to VerifyReadyDlg (a per-user install can't write to protected folders anyway).
+  Users without admin rights only get the per-user option.
+
+  Requires the ApplicationFolderName property and an APPLICATIONFOLDER directory.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+	<Fragment>
+		<!-- Read by InstallScopeDlg to decide which options it shows. -->
+		<WixVariable Id="WixUISupportPerUser" Value="1" />
+		<WixVariable Id="WixUISupportPerMachine" Value="1" />
+
+		<PropertyRef Id="ApplicationFolderName" />
+
+		<!-- Default choice on InstallScopeDlg: WixPerUserFolder or WixPerMachineFolder. -->
+		<Property Id="WixAppFolder" Value="WixPerUserFolder" />
+		<Property Id="WIXUI_INSTALLDIR" Value="APPLICATIONFOLDER" />
+		<Property Id="ARPNOMODIFY" Value="1" />
+
+		<!-- Candidate install folders for each scope. The package starts per-user
+         (MSIINSTALLPERUSER=1), which makes Windows Installer redirect
+         ProgramFiles64Folder to %LocalAppData%\Programs, so the per-machine
+         folder is taken from the real 64-bit Program Files location instead. -->
+		<SetProperty Id="WixPerUserFolder" Value="[LocalAppDataFolder]Apps\[ApplicationFolderName]"
+					 Before="CostFinalize" Sequence="both" />
+		<SetProperty Id="WixPerMachineFolder" Value="[%ProgramW6432]\[ApplicationFolderName]"
+					 After="SetWixPerUserFolder" Sequence="both" />
+
+		<!-- Pick the folder for installs that don't go through InstallScopeDlg
+         (silent installs, or passing ALLUSERS=1 on the command line). -->
+		<CustomAction Id="MxLintSetPerUserFolder" Property="APPLICATIONFOLDER" Value="[WixPerUserFolder]" Execute="immediate" />
+		<CustomAction Id="MxLintSetPerMachineFolder" Property="APPLICATIONFOLDER" Value="[WixPerMachineFolder]" Execute="immediate" />
+		<InstallUISequence>
+			<Custom Action="MxLintSetPerUserFolder" After="SetWixPerMachineFolder" Condition="ACTION=&quot;INSTALL&quot; AND APPLICATIONFOLDER=&quot;&quot; AND (ALLUSERS=&quot;&quot; OR (ALLUSERS=2 AND (NOT Privileged)))" />
+			<Custom Action="MxLintSetPerMachineFolder" After="MxLintSetPerUserFolder" Condition="ACTION=&quot;INSTALL&quot; AND APPLICATIONFOLDER=&quot;&quot; AND (ALLUSERS=1 OR (ALLUSERS=2 AND Privileged))" />
+		</InstallUISequence>
+		<InstallExecuteSequence>
+			<Custom Action="MxLintSetPerUserFolder" After="SetWixPerMachineFolder" Condition="ACTION=&quot;INSTALL&quot; AND APPLICATIONFOLDER=&quot;&quot; AND (ALLUSERS=&quot;&quot; OR (ALLUSERS=2 AND (NOT Privileged)))" />
+			<Custom Action="MxLintSetPerMachineFolder" After="MxLintSetPerUserFolder" Condition="ACTION=&quot;INSTALL&quot; AND APPLICATIONFOLDER=&quot;&quot; AND (ALLUSERS=1 OR (ALLUSERS=2 AND Privileged))" />
+		</InstallExecuteSequence>
+
+		<!-- Existing install detection
+         ==========================
+         A major upgrade (FindRelatedProducts) only finds products installed in
+         the same scope as the new install, so upgrading a per-machine install
+         with a per-user install (or the other way round) would leave both
+         installed. The package writes its folder to HKMU\Software\MxLint\
+         MxLintManager\InstallDir (HKCU for per-user, HKLM for per-machine);
+         older versions only wrote the shortcut values there. When an existing
+         install is found, MXLINT_EXISTING_SCOPE is set to "perUser" or
+         "perMachine", and the new install takes over that scope and folder.
+         HKLM is searched in both registry views, since an x86 build writes to
+         the 32-bit view. -->
+		<Property Id="MXLINT_PERUSER_DIR" Secure="yes">
+			<RegistrySearch Id="MxLintPerUserDirSearch" Root="HKCU" Key="Software\MxLint\MxLintManager" Name="InstallDir" Type="raw" />
+		</Property>
+		<Property Id="MXLINT_PERUSER_LEGACY" Secure="yes">
+			<RegistrySearch Id="MxLintPerUserStartMenuSearch" Root="HKCU" Key="Software\MxLint\MxLintManager" Name="StartMenuShortcut" Type="raw" />
+			<RegistrySearch Id="MxLintPerUserDesktopSearch" Root="HKCU" Key="Software\MxLint\MxLintManager" Name="DesktopShortcut" Type="raw" />
+		</Property>
+		<Property Id="MXLINT_PERMACHINE_DIR" Secure="yes">
+			<RegistrySearch Id="MxLintPerMachineDirSearch64" Root="HKLM" Key="Software\MxLint\MxLintManager" Name="InstallDir" Type="raw" Bitness="always64" />
+			<RegistrySearch Id="MxLintPerMachineDirSearch32" Root="HKLM" Key="Software\MxLint\MxLintManager" Name="InstallDir" Type="raw" Bitness="always32" />
+		</Property>
+		<Property Id="MXLINT_PERMACHINE_LEGACY" Secure="yes">
+			<RegistrySearch Id="MxLintPerMachineStartMenuSearch64" Root="HKLM" Key="Software\MxLint\MxLintManager" Name="StartMenuShortcut" Type="raw" Bitness="always64" />
+			<RegistrySearch Id="MxLintPerMachineStartMenuSearch32" Root="HKLM" Key="Software\MxLint\MxLintManager" Name="StartMenuShortcut" Type="raw" Bitness="always32" />
+			<RegistrySearch Id="MxLintPerMachineDesktopSearch64" Root="HKLM" Key="Software\MxLint\MxLintManager" Name="DesktopShortcut" Type="raw" Bitness="always64" />
+			<RegistrySearch Id="MxLintPerMachineDesktopSearch32" Root="HKLM" Key="Software\MxLint\MxLintManager" Name="DesktopShortcut" Type="raw" Bitness="always32" />
+		</Property>
+
+		<!-- Per-machine wins if both scopes are somehow installed. -->
+		<SetProperty Id="MXLINT_EXISTING_SCOPE" Action="MxLintExistingPerUser" Value="perUser"
+					 After="AppSearch" Sequence="both"
+					 Condition="NOT Installed AND (MXLINT_PERUSER_DIR OR MXLINT_PERUSER_LEGACY)" />
+		<SetProperty Id="MXLINT_EXISTING_SCOPE" Action="MxLintExistingPerMachine" Value="perMachine"
+					 After="MxLintExistingPerUser" Sequence="both"
+					 Condition="NOT Installed AND (MXLINT_PERMACHINE_DIR OR MXLINT_PERMACHINE_LEGACY)" />
+
+		<!-- Reuse the existing folder. When it isn't known (older versions),
+         MxLintSetPerUserFolder / MxLintSetPerMachineFolder pick the default. -->
+		<SetProperty Id="APPLICATIONFOLDER" Action="MxLintExistingPerUserFolder" Value="[MXLINT_PERUSER_DIR]"
+					 After="MxLintExistingPerMachine" Sequence="both"
+					 Condition="MXLINT_EXISTING_SCOPE=&quot;perUser&quot; AND MXLINT_PERUSER_DIR AND APPLICATIONFOLDER=&quot;&quot;" />
+		<SetProperty Id="APPLICATIONFOLDER" Action="MxLintExistingPerMachineFolder" Value="[MXLINT_PERMACHINE_DIR]"
+					 After="MxLintExistingPerUserFolder" Sequence="both"
+					 Condition="MXLINT_EXISTING_SCOPE=&quot;perMachine&quot; AND MXLINT_PERMACHINE_DIR AND APPLICATIONFOLDER=&quot;&quot;" />
+
+		<!-- Interactive installs: switch to the existing scope. This must happen
+         before FindRelatedProducts (which normally runs before AppSearch), so
+         FindRelatedProducts is moved after these actions. InstallScopeDlg is
+         skipped in that case (see the UI below). -->
+		<SetProperty Id="ALLUSERS" Action="MxLintMatchPerUserScope" Value="2"
+					 After="MxLintExistingPerMachineFolder" Sequence="ui"
+					 Condition="MXLINT_EXISTING_SCOPE=&quot;perUser&quot;" />
+		<SetProperty Id="MSIINSTALLPERUSER" Action="MxLintMatchPerUserScope2" Value="1"
+					 After="MxLintMatchPerUserScope" Sequence="ui"
+					 Condition="MXLINT_EXISTING_SCOPE=&quot;perUser&quot;" />
+		<SetProperty Id="ALLUSERS" Action="MxLintMatchPerMachineScope" Value="1"
+					 After="MxLintMatchPerUserScope2" Sequence="ui"
+					 Condition="MXLINT_EXISTING_SCOPE=&quot;perMachine&quot;" />
+		<InstallUISequence>
+			<FindRelatedProducts After="MxLintMatchPerMachineScope" />
+		</InstallUISequence>
+
+		<!-- Silent installs can't change scope once running (the scope is fixed
+         before the execute sequence starts), so a mismatch stops the install
+         with instructions instead of installing a second copy. -->
+		<CustomAction Id="MxLintScopeMismatchPerMachine"
+					  Error="[ProductName] is already installed for all users of this computer. Run the installer with ALLUSERS=1 to upgrade it." />
+		<CustomAction Id="MxLintScopeMismatchPerUser"
+					  Error="[ProductName] is already installed for the current user only. Run the installer without ALLUSERS=1 to upgrade it." />
+		<InstallExecuteSequence>
+			<Custom Action="MxLintScopeMismatchPerMachine" After="MxLintExistingPerMachineFolder"
+					Condition="MXLINT_EXISTING_SCOPE=&quot;perMachine&quot; AND NOT (ALLUSERS=1 OR (ALLUSERS=2 AND MSIINSTALLPERUSER=&quot;&quot; AND Privileged))" />
+			<Custom Action="MxLintScopeMismatchPerUser" After="MxLintScopeMismatchPerMachine"
+					Condition="MXLINT_EXISTING_SCOPE=&quot;perUser&quot; AND (ALLUSERS=1 OR (ALLUSERS=2 AND MSIINSTALLPERUSER=&quot;&quot; AND Privileged))" />
+			<FindRelatedProducts After="MxLintScopeMismatchPerUser" />
+		</InstallExecuteSequence>
+
+		<UI Id="WixUI_MxLint">
+			<TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
+			<TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12" />
+			<TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes" />
+			<TextStyle Id="WixUI_Font_Emphasized" FaceName="Tahoma" Size="8" Bold="yes" />
+
+			<Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
+
+			<DialogRef Id="BrowseDlg" />
+			<DialogRef Id="DiskCostDlg" />
+			<DialogRef Id="ErrorDlg" />
+			<DialogRef Id="FatalError" />
+			<DialogRef Id="FilesInUse" />
+			<DialogRef Id="MsiRMFilesInUse" />
+			<DialogRef Id="PrepareDlg" />
+			<DialogRef Id="ProgressDlg" />
+			<DialogRef Id="ResumeDlg" />
+			<DialogRef Id="UserExit" />
+
+			<Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999" />
+
+			<!-- Welcome -> License -->
+			<Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg" Condition="NOT Installed" />
+			<Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Condition="Installed AND PATCH" />
+
+			<!-- License -> Install scope -->
+			<Publish Dialog="LicenseAgreementDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" />
+			<Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="InstallScopeDlg" Condition="LicenseAccepted = &quot;1&quot; AND NOT MXLINT_EXISTING_SCOPE" />
+			<!-- Upgrading an existing install: its scope and folder are reused, so go straight to Ready. -->
+			<Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Condition="LicenseAccepted = &quot;1&quot; AND MXLINT_EXISTING_SCOPE" />
+
+			<!-- Install scope -> Install folder (per-machine) or Ready (per-user) -->
+			<Publish Dialog="InstallScopeDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg" />
+			<!-- Standard users aren't shown the scope choice, so force per-user for them. -->
+			<Publish Dialog="InstallScopeDlg" Control="Next" Property="WixAppFolder" Value="WixPerUserFolder" Order="1" Condition="NOT Privileged" />
+			<Publish Dialog="InstallScopeDlg" Control="Next" Property="ALLUSERS" Value="{}" Order="2" Condition="WixAppFolder = &quot;WixPerUserFolder&quot;" />
+			<Publish Dialog="InstallScopeDlg" Control="Next" Property="ALLUSERS" Value="1" Order="3" Condition="WixAppFolder = &quot;WixPerMachineFolder&quot;" />
+			<Publish Dialog="InstallScopeDlg" Control="Next" Property="APPLICATIONFOLDER" Value="[WixPerUserFolder]" Order="4" Condition="WixAppFolder = &quot;WixPerUserFolder&quot;" />
+			<Publish Dialog="InstallScopeDlg" Control="Next" Property="APPLICATIONFOLDER" Value="[WixPerMachineFolder]" Order="5" Condition="WixAppFolder = &quot;WixPerMachineFolder&quot;" />
+			<Publish Dialog="InstallScopeDlg" Control="Next" Event="SetTargetPath" Value="APPLICATIONFOLDER" Order="6" Condition="WixAppFolder = &quot;WixPerUserFolder&quot;" />
+			<Publish Dialog="InstallScopeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Order="7" Condition="WixAppFolder = &quot;WixPerUserFolder&quot;" />
+			<Publish Dialog="InstallScopeDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="8" Condition="WixAppFolder = &quot;WixPerMachineFolder&quot;" />
+
+			<!-- Install folder -> Ready -->
+			<Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="InstallScopeDlg" />
+			<Publish Dialog="InstallDirDlg" Control="Next" Event="CheckTargetPath" Value="[WIXUI_INSTALLDIR]" Order="1" />
+			<Publish Dialog="InstallDirDlg" Control="Next" Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="3" />
+			<Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Order="4" />
+			<Publish Dialog="InstallDirDlg" Control="ChangeFolder" Property="_BrowseProperty" Value="[WIXUI_INSTALLDIR]" Order="1" />
+			<Publish Dialog="InstallDirDlg" Control="ChangeFolder" Event="SpawnDialog" Value="BrowseDlg" Order="2" />
+
+			<Publish Dialog="BrowseDlg" Control="OK" Event="CheckTargetPath" Value="[WIXUI_INSTALLDIR]" Order="1" />
+			<Publish Dialog="BrowseDlg" Control="OK" Event="SetTargetPath" Value="[_BrowseProperty]" Order="3" />
+			<Publish Dialog="BrowseDlg" Control="OK" Event="EndDialog" Value="Return" Order="4" />
+
+			<!-- Ready: Back returns to wherever the user came from. -->
+			<Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg" Order="1" Condition="NOT Installed AND MXLINT_EXISTING_SCOPE" />
+			<Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="InstallScopeDlg" Order="1" Condition="NOT Installed AND NOT MXLINT_EXISTING_SCOPE AND WixAppFolder = &quot;WixPerUserFolder&quot;" />
+			<Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="InstallDirDlg" Order="1" Condition="NOT Installed AND NOT MXLINT_EXISTING_SCOPE AND WixAppFolder = &quot;WixPerMachineFolder&quot;" />
+			<Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2" Condition="Installed AND NOT PATCH" />
+			<Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2" Condition="Installed AND PATCH" />
+
+			<!-- Repair / remove of an existing install. -->
+			<Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg" />
+			<Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg" />
+			<Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg" />
+			<Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg" />
+		</UI>
+
+		<UIRef Id="WixUI_Common" />
+	</Fragment>
+</Wix>

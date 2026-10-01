@@ -1,0 +1,62 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Style x:Key="FlatButtonBase" TargetType="Button">
+        <Setter Property="Padding" Value="14,7"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{StaticResource DisabledBgBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource DisabledFgBrush}"/>
+                <Setter Property="Cursor" Value="Arrow"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource FlatButtonBase}">
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="BorderBrush" Value="#B0B0B0"/>
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+    </Style>
+
+    <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource FlatButtonBase}">
+        <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <Style x:Key="RemoveButton" TargetType="Button" BasedOn="{StaticResource FlatButtonBase}">
+        <Setter Property="Background" Value="{StaticResource RemoveBgBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource RemoveBorderBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource RemoveBrush}"/>
+    </Style>
+
+    <Style TargetType="TextBox">
+        <Setter Property="Padding" Value="8,7"/>
+        <Setter Property="FontFamily" Value="Consolas"/>
+        <Setter Property="FontSize" Value="12.5"/>
+        <Setter Property="BorderBrush" Value="#B0B0B0"/>
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+    </Style>
+
+    <Style TargetType="ComboBox">
+        <Setter Property="Padding" Value="6,5"/>
+        <Setter Property="FontSize" Value="12.5"/>
+        <Setter Property="BorderBrush" Value="#B0B0B0"/>
+    </Style>
+
+</ResourceDictionary>
